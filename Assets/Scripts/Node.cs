@@ -11,6 +11,8 @@ public class Node : IHeapItem<Node>
     //节点在世界网格数组中的位置
     public int gridX;
     public int gridY;
+    //移动值（图层值+移动惩罚值）
+    public int movementPenalty;
 
     public Node parent;
     //gCost离起点的距离;hCost离终点的距离 ;fCost寻路消耗
@@ -22,12 +24,13 @@ public class Node : IHeapItem<Node>
     public int HeapIndex { get { return heapIndex; } set { heapIndex = value; } }
 
     //创建网格节点，参数：是否能经过，世界位置，世界网格二维数组的x,y
-    public Node(bool _walkable, Vector3 _worldPo, int _gridX, int _gridY)
+    public Node(bool _walkable, Vector3 _worldPo, int _gridX, int _gridY,int _penalty)
     {
         this.walkable = _walkable;
         this.worldPosition = _worldPo;
         this.gridX = _gridX;
         this.gridY = _gridY;
+        this.movementPenalty = _penalty;
     }
     //用于比较两个节点的 fCost
     //返回为正则说明该节点的优先级大于 nodeToCompare 的优先级（即该节点的 fCost 值较小）

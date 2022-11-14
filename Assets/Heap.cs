@@ -2,13 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-//泛型接口，每个加入堆的 item 都会有一个索引
-//有一个 CompareTo() 方法，用于比较
-public interface IHeapItem<T> : IComparable<T>
-{
-    int HeapIndex { get; set; }
-}
-
+//最小堆
 public class Heap<T> where T : IHeapItem<T>
 {
     //泛型数组
@@ -107,5 +101,11 @@ public class Heap<T> where T : IHeapItem<T>
         itemA.HeapIndex = itemB.HeapIndex;
         itemB.HeapIndex = itemAIndex;
     }
+}
+//泛型接口，每个加入堆的 item 都会有一个索引
+//有一个 CompareTo() 方法，用于比较
+public interface IHeapItem<T> : IComparable<T>
+{
+    int HeapIndex { get; set; }
 }
 

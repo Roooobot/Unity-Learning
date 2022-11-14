@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -5,7 +6,7 @@ using UnityEngine;
 public class Grid : MonoBehaviour
 {
     //Test
-    public bool onlyDisplayPathGizmos;
+    public bool displayGizmos;
 
     //图层
     public LayerMask unwalkableMask;
@@ -14,12 +15,20 @@ public class Grid : MonoBehaviour
     //每个网格节点的中心到边界的距离
     public float nodeRadius;
     Node[,] grid;
-
+    //数组用于存放不同图层的移动惩罚值
+    public TerrainType[] walkableRegions;
+    //可行走的图层，（目前是在编辑器界面设置）
+    LayerMask walkableMask;
+    //字典集，用于存放不同图层的移动值（即图层值+惩罚值）
+    Dictionary<int, int> walkableRegionsDictionary = new Dictionary<int, int>();
+    //网格边长
     float nodeDiameter;
+    //地图X轴的网格数，地图Y轴的网格数
     int gridSizeX, gridSizeY;
+    //世界里的网格总数
     public int MaxSize { get { return gridSizeX * gridSizeY; } }
 
-    private void Start()
+    private void Awake()
     {
         //计算出世界里网格数
         nodeDiameter = nodeRadius * 2;
@@ -27,6 +36,12 @@ public class Grid : MonoBehaviour
         gridSizeX = Mathf.RoundToInt(gridWorldSize.x / nodeDiameter);
         //Y方向上网格个数
         gridSizeY = Mathf.RoundToInt(gridWorldSize.y / nodeDiameter);
+        //将每个网格的图层数值加上移动的惩罚值获得图层的移动值；并将其存放于字典集中
+        foreach(TerrainType region in walkableRegions)
+        {
+            walkableMask.value += region.terrainMask.value;
+            walkableRegionsDictionary.Add((int)Mathf.Log(region.terrainMask.value, 2), region.terrainPenalty);
+        }
         CreatGrid();
     }
     //将世界分成X*Y个网格
@@ -44,10 +59,23 @@ public class Grid : MonoBehaviour
                 //对每个点进行范围碰撞检测，判断当前网格是否可以经过
                 //如果范围内有物体则判断为不可经过
                 bool walkable = !(Physics.CheckSphere(worldPoint, nodeRadius, unwalkableMask));
-                grid[x, y] = new Node(walkable, worldPoint, x, y);
+                //当前网格的移动值
+                int movementPenalty = 0;
+                //如果是可以行走的网格，则从网格中心上方发出射线获取该网格内的处于 walkableMask 的对象所处的图层（Layer），并以此获取该网格的移动值
+                if (walkable)
+                {
+                    Ray ray = new Ray(worldPoint + Vector3.up * 50, Vector3.down);
+                    RaycastHit hit;
+                    if(Physics.Raycast(ray, out hit, 100, walkableMask))
+                    {
+                        walkableRegionsDictionary.TryGetValue(hit.collider.gameObject.layer,out movementPenalty);
+                    }
+                }
+                grid[x, y] = new Node(walkable, worldPoint, x, y, movementPenalty);
             }
         }
     }
+
     //返回一个节点的周围的节点的列表
     public List<Node> GetNeighbous(Node node)
     {
@@ -85,37 +113,23 @@ public class Grid : MonoBehaviour
         return grid[x, y];
     }
 
-    public List<Node> path;
     private void OnDrawGizmos()
     {
         Gizmos.DrawWireCube(transform.position, new Vector3(gridWorldSize.x, 1f, gridWorldSize.y));
-        //Test
-        if (onlyDisplayPathGizmos)
+        if (grid != null && displayGizmos)
         {
-            if (path != null)
+            foreach (Node n in grid)
             {
-                foreach (Node n in path)
-                {
-                    Gizmos.color = Color.black;
-                    Gizmos.DrawCube(n.worldPosition, Vector3.one * (nodeDiameter - 0.1f));
-                }
+                Gizmos.color = (n.walkable) ? Color.white : Color.red;
+                Gizmos.DrawCube(n.worldPosition, Vector3.one * (nodeDiameter - 0.1f));
             }
         }
-        else
-        {
-
-            if (grid != null)
-            {
-                foreach (Node n in grid)
-                {
-                    Gizmos.color = (n.walkable) ? Color.white : Color.red;
-                    if (path != null)
-                        if (path.Contains(n))
-                            Gizmos.color = Color.black;
-                    Gizmos.DrawCube(n.worldPosition, Vector3.one * (nodeDiameter - 0.1f));
-                }
-            }
-
-        }
+    }
+    //创建一个类用于将移动惩罚值和对应的图层联系起来
+    [System.Serializable]
+    public class TerrainType
+    {
+        public LayerMask terrainMask;
+        public int terrainPenalty;
     }
 }
