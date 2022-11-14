@@ -13,14 +13,9 @@ public class Pathfinding : MonoBehaviour
     {
         grid = GetComponent<Grid>();
     }
-    //开始寻路协程
-    public void StartFindPath(Vector3 startPos, Vector3 targetPos)
-    {
-        StartCoroutine(FindPath(startPos, targetPos));
-    }
 
     //寻路方法
-    IEnumerator FindPath(Vector3 startPos, Vector3 targetPos)
+    public void FindPath(PathRequest request,Action<PathResult>callback)
     {
         //Test
         Stopwatch sw = new();
@@ -30,8 +25,8 @@ public class Pathfinding : MonoBehaviour
         //用于判断是否已经寻路结束
         bool pathSuccess = false;
         //创建开始和结束的网格点
-        Node startNode = grid.NodeFromWorldPoint(startPos);
-        Node targetNode = grid.NodeFromWorldPoint(targetPos);
+        Node startNode = grid.NodeFromWorldPoint(request.pathStart);
+        Node targetNode = grid.NodeFromWorldPoint(request.pathEnd);
         //如果开始节点和目标节点都能行走则开始寻路
         if (startNode.walkable && targetNode.walkable)
         {
@@ -80,12 +75,12 @@ public class Pathfinding : MonoBehaviour
                 }
             }
         }
-        yield return null;
         if (pathSuccess)
         {
             waypoints = RetracePath(startNode, targetNode);
+            pathSuccess = waypoints.Length > 0;
         }
-        PathRequestManager.Instance.FinishedProcessingPath(waypoints, pathSuccess);
+        callback(new PathResult(waypoints,pathSuccess,request.callback));
     }
 
     //返回路径的全部网格节点

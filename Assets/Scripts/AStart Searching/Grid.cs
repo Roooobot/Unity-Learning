@@ -83,7 +83,7 @@ public class Grid : MonoBehaviour
         BlurPenaltyMap(3);
     }
 
-    //模糊过度网格之间移动值的差距,可以让对象更倾向于行走在路中间
+    //模糊过渡网格之间移动值的差距,可以让对象更倾向于行走在路中间
     void BlurPenaltyMap(int blurSize)
     {
         int kernelSize = blurSize * 2 + 1;
