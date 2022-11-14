@@ -7,7 +7,6 @@ public class Grid : MonoBehaviour
 {
     //Test
     public bool displayGizmos;
-
     //图层
     public LayerMask unwalkableMask;
     //网格世界大小
@@ -15,6 +14,7 @@ public class Grid : MonoBehaviour
     //每个网格节点的中心到边界的距离
     public float nodeRadius;
     Node[,] grid;
+     int obstacleProximitypenalty = 40;
     //数组用于存放不同图层的移动惩罚值
     public TerrainType[] walkableRegions;
     //可行走的图层，（目前是在编辑器界面设置）
@@ -27,6 +27,9 @@ public class Grid : MonoBehaviour
     int gridSizeX, gridSizeY;
     //世界里的网格总数
     public int MaxSize { get { return gridSizeX * gridSizeY; } }
+
+    int penaltyMin =int.MaxValue;
+    int penaltyMax =int.MinValue;
 
     private void Awake()
     {
@@ -44,6 +47,7 @@ public class Grid : MonoBehaviour
         }
         CreatGrid();
     }
+
     //将世界分成X*Y个网格
     private void CreatGrid()
     {
@@ -61,17 +65,74 @@ public class Grid : MonoBehaviour
                 bool walkable = !(Physics.CheckSphere(worldPoint, nodeRadius, unwalkableMask));
                 //当前网格的移动值
                 int movementPenalty = 0;
-                //如果是可以行走的网格，则从网格中心上方发出射线获取该网格内的处于 walkableMask 的对象所处的图层（Layer），并以此获取该网格的移动值
-                if (walkable)
+                //从网格中心上方发出射线获取该网格内的处于 walkableMask 的对象所处的图层（Layer），并以此获取该网格的移动值
+                Ray ray = new Ray(worldPoint + Vector3.up * 50, Vector3.down);
+                RaycastHit hit;
+                if (Physics.Raycast(ray, out hit, 100, walkableMask))
                 {
-                    Ray ray = new Ray(worldPoint + Vector3.up * 50, Vector3.down);
-                    RaycastHit hit;
-                    if(Physics.Raycast(ray, out hit, 100, walkableMask))
-                    {
-                        walkableRegionsDictionary.TryGetValue(hit.collider.gameObject.layer,out movementPenalty);
-                    }
+                    walkableRegionsDictionary.TryGetValue(hit.collider.gameObject.layer, out movementPenalty);
+                }
+                //如果是不可行走的，将其网格的移动值上调（目的是为了让离障碍物太近也有惩罚）
+                if (!walkable)
+                {
+                    movementPenalty+=obstacleProximitypenalty;
                 }
                 grid[x, y] = new Node(walkable, worldPoint, x, y, movementPenalty);
+            }
+        }
+        BlurPenaltyMap(3);
+    }
+
+    //模糊过度网格之间移动值的差距,可以让对象更倾向于行走在路中间
+    void BlurPenaltyMap(int blurSize)
+    {
+        int kernelSize = blurSize * 2 + 1;
+        int kernelExtents = (kernelSize - 1) / 2;
+        int[,] penaltiesHorizontalPass = new int[gridSizeX, gridSizeY];
+        int[,] penaltiesVerticalPass = new int[gridSizeX, gridSizeY];
+
+        for(int y = 0; y < gridSizeY; y++)
+        {
+            for(int x =-kernelExtents; x <= kernelExtents; x++)
+            {
+                int sampleX = Mathf.Clamp(x,0,kernelExtents);
+                penaltiesHorizontalPass[0, y] += grid[sampleX,y].movementPenalty;
+            }
+            for(int x = 1; x < gridSizeX; x++)
+            {
+                int removeIndex = Mathf.Clamp(x - kernelExtents - 1, 0, gridSizeX);
+                int addIndex = Mathf.Clamp(x+kernelExtents, 0, gridSizeX-1);
+
+                penaltiesHorizontalPass[x, y] = penaltiesHorizontalPass[x - 1, y] - grid[removeIndex, y].movementPenalty + grid[addIndex, y].movementPenalty;
+            }
+        }
+        for (int x = 0; x < gridSizeX; x++)
+        {
+            for (int y = -kernelExtents; y <= kernelExtents; y++)
+            {
+                int sampleY = Mathf.Clamp(y, 0, kernelExtents);
+                penaltiesVerticalPass[x, 0] += penaltiesHorizontalPass[x, sampleY];
+            }
+            int blurredPenalty = Mathf.RoundToInt((float)penaltiesVerticalPass[x, 0] / (kernelSize * kernelSize));
+            grid[x, 0].movementPenalty = blurredPenalty;
+
+            for (int y = 1; y < gridSizeY; y++)
+            {
+                int removeIndex = Mathf.Clamp(y - kernelExtents - 1, 0, gridSizeY);
+                int addIndex = Mathf.Clamp(y + kernelExtents, 0, gridSizeY - 1);
+
+                penaltiesVerticalPass[x, y] = penaltiesVerticalPass[x, y - 1] - penaltiesHorizontalPass[x, removeIndex] + penaltiesHorizontalPass[x, addIndex];
+                blurredPenalty =Mathf.RoundToInt((float) penaltiesVerticalPass[x, y] / (kernelSize * kernelSize));
+                grid[x,y].movementPenalty=blurredPenalty;
+
+                if (blurredPenalty > penaltyMax)
+                {
+                    penaltyMax = blurredPenalty;
+                }
+                if(blurredPenalty < penaltyMin)
+                {
+                    penaltyMin=blurredPenalty;
+                }
             }
         }
     }
@@ -99,6 +160,7 @@ public class Grid : MonoBehaviour
         }
         return neighbous;
     }
+
     //返回该物体所在的网格
     public Node NodeFromWorldPoint(Vector3 worldPosition)
     {
@@ -120,8 +182,10 @@ public class Grid : MonoBehaviour
         {
             foreach (Node n in grid)
             {
-                Gizmos.color = (n.walkable) ? Color.white : Color.red;
-                Gizmos.DrawCube(n.worldPosition, Vector3.one * (nodeDiameter - 0.1f));
+                Gizmos.color = Color.Lerp(Color.white, Color.black, Mathf.InverseLerp(penaltyMin, penaltyMax, n.movementPenalty));
+
+                Gizmos.color = (n.walkable) ? Gizmos.color : Color.red;
+                Gizmos.DrawCube(n.worldPosition, Vector3.one * (nodeDiameter));
             }
         }
     }
