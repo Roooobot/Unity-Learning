@@ -20,7 +20,7 @@ public class Grid : MonoBehaviour
     //可行走的图层，（目前是在编辑器界面设置）
     LayerMask walkableMask;
     //字典集，用于存放不同图层的移动值（即图层值+惩罚值）
-    Dictionary<int, int> walkableRegionsDictionary = new Dictionary<int, int>();
+    Dictionary<int, int> walkableRegionsDictionary = new ();
     //网格边长
     float nodeDiameter;
     //地图X轴的网格数，地图Y轴的网格数
@@ -66,7 +66,7 @@ public class Grid : MonoBehaviour
                 //当前网格的移动值
                 int movementPenalty = 0;
                 //从网格中心上方发出射线获取该网格内的处于 walkableMask 的对象所处的图层（Layer），并以此获取该网格的移动值
-                Ray ray = new Ray(worldPoint + Vector3.up * 50, Vector3.down);
+                Ray ray = new (worldPoint + Vector3.up * 50, Vector3.down);
                 RaycastHit hit;
                 if (Physics.Raycast(ray, out hit, 100, walkableMask))
                 {
@@ -140,7 +140,7 @@ public class Grid : MonoBehaviour
     //返回一个节点的周围的节点的列表
     public List<Node> GetNeighbous(Node node)
     {
-        List<Node> neighbous = new List<Node>();
+        List<Node> neighbous = new ();
         //以当前节点为中心，查看3*3的网格节点
         for (int x = -1; x <= 1; x++)
         {

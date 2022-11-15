@@ -2,19 +2,29 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Singleton<T> : MonoBehaviour where T : Singleton<T>
+public class Singleton<T> : MonoBehaviour where T : Component
 {
     private static T instance;
     public static T Instance
     {
-        get { return instance; }
+        get 
+        {                 
+            if (instance == null)
+                instance =FindObjectOfType<T>();
+            if(instance == null)
+            {
+                GameObject gameObject = new GameObject("Controller");
+                instance = gameObject.AddComponent<T>();
+            }
+            return instance; 
+        }
     }
     protected virtual void Awake()
     {
         if (instance != null)
             Destroy(gameObject);
         else
-            instance = (T)this;
+            instance =this as T;
     }
 
     public static bool IsIntialized
